@@ -1,7 +1,7 @@
 export function validateAndExtractTokenFromRequest(
-  request: Request
+  request: import('express').Request
 ): string | null {
-  const header = request.headers.get("authorization");
+  const header = request.headers.authorization;
 
   if (header == null) {
     return null;
