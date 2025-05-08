@@ -6,7 +6,7 @@ describe("getAllGlobalStates", () => {
   test("When we got valid timestamp -> we should return Number", async () => {
     mockFetch(
       "POST",
-      "https://api.thegraph.com/subgraphs/name/graphprotocol/grt-circulating-supply",
+      "https://gateway.thegraph.com/api/subgraphs/id/6FzQRX4QRVUcAKp6K1DjwnvuQwSYfwhdVG2EhVmHrUwY",
       {
         data: {
           globalStates: [
@@ -38,7 +38,7 @@ describe("getAllGlobalStates", () => {
   test("should throw error when we got HTTP 300/400/500", async () => {
     mockFetch(
       "POST",
-      "https://api.thegraph.com/subgraphs/name/graphprotocol/grt-circulating-supply",
+      "https://gateway.thegraph.com/api/subgraphs/id/6FzQRX4QRVUcAKp6K1DjwnvuQwSYfwhdVG2EhVmHrUwY",
       {
         errors: [
           {

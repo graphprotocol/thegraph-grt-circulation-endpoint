@@ -58,91 +58,94 @@ function createCirculatingSupplyResponse(
   globalState: AllGlobalStatesQuery["globalStates"][number]
 ): Response {
   const patchedResponse = patchResponse(globalState);
-  return new Response(patchedResponse.circulatingSupply);
+  return new Response(String(patchedResponse.circulatingSupply));
 }
 
 function createTotalsupplyResponse(
   globalState: AllGlobalStatesQuery["globalStates"][number]
 ): Response {
   const patchedResponse = patchResponse(globalState);
-  return new Response(patchedResponse.totalSupply);
+  return new Response(String(patchedResponse.totalSupply));
 }
 
 export async function handleRequest(
   request: Request,
   options: {
-    jwtVerifySecret: string;
+    jwtVerifySecret?: string; // Made optional
+    etherscanApiKey: string;
   }
 ): Promise<Response> {
   try {
-    const urlParams = new URL(request.url);
-    const params = Object.fromEntries(urlParams.searchParams);
+    const url = new URL(request.url);
+    const params = Object.fromEntries(url.searchParams);
+    const pathname = url.pathname;
 
-    const totalSupply = request.url.endsWith("/total-supply");
-    if (totalSupply) {
+    // Authentication: Only if jwtVerifySecret is provided (i.e., for routes index.ts deems private)
+    if (options.jwtVerifySecret) {
+      const token = validateAndExtractTokenFromRequest(request);
+      if (!token) {
+        return createErrorResponse("Missing Token (for authenticated route)", 400);
+      }
+      const isValid = await jwt.verify(token, options.jwtVerifySecret);
+      if (!isValid) {
+        return createErrorResponse("Invalid Token", 401);
+      }
+      console.info(`Authenticated request for ${pathname} passed validation.`);
+    } else {
+      console.info(`Public request for ${pathname} (no JWT verification needed as per calling context).`);
+    }
+
+    // Path-based routing for data fetching
+    // Using .includes to be flexible with trailing slashes, matching index.ts
+    if (pathname.includes("/token-supply")) {
       const lastGlobalState = await getLatestGlobalState();
-      console.log("Total Supply Request");
+      console.log("Processing /token-supply request.");
       return createTotalsupplyResponse(lastGlobalState);
     }
 
-    const circulatingSupply = request.url.endsWith("/circulating-supply");
-    if (circulatingSupply) {
+    if (pathname.includes("/circulating-supply")) {
       const lastGlobalState = await getLatestGlobalState();
-      console.log("Circulating Supply Request");
+      console.log("Processing /circulating-supply request.");
       return createCirculatingSupplyResponse(lastGlobalState);
     }
 
-    const token = validateAndExtractTokenFromRequest(request);
-    if (!token) {
-      return createErrorResponse("Missing Token", 400);
+    // If we reach here, it's not /token-supply or /circulating-supply.
+    // If it was a public call (options.jwtVerifySecret was undefined as per index.ts),
+    // then it's an unknown public path because index.ts only marks /token-supply and /circulating-supply as public.
+    if (!options.jwtVerifySecret) {
+      return createErrorResponse(`Endpoint ${pathname} not found or not configured as public.`, 404);
     }
-    const isValid = await jwt.verify(token, options.jwtVerifySecret);
-    console.info(
-      `Authorization was trying to verify. The Authorization State: ${isValid}`
-    );
 
+    // At this point, it must be an authenticated request (options.jwtVerifySecret was present and token validated)
+    // for a path other than /token-supply or /circulating-supply. This is where timestamp logic applies.
     const timestamp = params.timestamp ? parseInt(params.timestamp) : null;
-    console.log(`timestamp is:`, timestamp);
-
     if (timestamp) {
-      const blockDetails = await getBlockByTimestamp(timestamp).then(
-        (blockInfo) => {
-          console.info(`blockDetails - blockInfo is:`, blockInfo);
-          if (!blockInfo) {
-            return getLatestBlock();
-          }
-
+      console.log(`Processing authenticated request for timestamp: ${timestamp}`);
+      const blockDetails = await getBlockByTimestamp(timestamp, options.etherscanApiKey).then(
+        async (blockInfo) => {
+          if (!blockInfo) return await getLatestBlock(options.etherscanApiKey);
           return blockInfo;
         }
       );
-      console.info(`blockDetails is:`, blockDetails);
-
-      const globalStateDetails = await getGlobalStateByBlockNumber(
-        blockDetails
-      ).then((globalStateInfo) => {
-        console.info(`globalStateDetails - blockInfo is:`, globalStateInfo);
-        if (globalStateInfo == null) {
-          console.info(`globalStateInfo is missing:`, globalStateInfo);
-
-          return getLatestGlobalState();
+      const globalStateDetails = await getGlobalStateByBlockNumber(blockDetails).then(
+        async (globalStateInfo) => {
+          if (!globalStateInfo) return await getLatestGlobalState();
+          return globalStateInfo;
         }
-
-        return globalStateInfo;
-      });
-
-      console.info(`Global State is:`, globalStateDetails);
-
+      );
       return createValidResponse(globalStateDetails);
     } else {
+      // Default response for authenticated requests if no timestamp and not other specific data paths
+      console.log("Processing default authenticated request (latest global state).");
       const lastGlobalState = await getLatestGlobalState();
-      console.log("Latest Global State");
       return createValidResponse(lastGlobalState);
     }
-  } catch (error) {
-    console.error(error);
 
+  } catch (error) {
+    console.error("Error in handleRequest:", error);
+    const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
     return createErrorResponse(
-      "Something went wrong - Please try again later or contact support",
+      `Server error: ${errorMessage}`,
       500
     );
   }
