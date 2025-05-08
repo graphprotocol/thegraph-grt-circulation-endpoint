@@ -13,9 +13,13 @@ import { handleRequest } from "./utils/flow";
 import { getNewToken } from "./utils/getNewToken";
 import { createToken } from "./utils/createToken";
 
+// This file is no longer the main entry point for Vercel deployment.
+// See server.ts for the Express server setup.
+// The logic below is specific to Cloudflare Workers.
+
 export default {
   async fetch(
-    request: Request,
+    request: Request, // This is the standard Web API Request
     env: Env,
     ctx: ExecutionContext
   ): Promise<Response> {
@@ -24,19 +28,22 @@ export default {
 
     // Dedicated token management endpoints (usually POST)
     if (request.method === "POST" && pathname.endsWith("/get-new-token")) {
+      // For Cloudflare, getNewToken expects a standard Request and Env
       return await getNewToken(request, env);
     }
 
     if (request.method === "POST" && pathname.endsWith("/create-token")) {
+      // For Cloudflare, createToken expects a standard Request and Env
       return await createToken(request, env);
     }
 
     // Public data endpoints (GET)
-    // Using .includes() for flexibility with trailing slashes, but ensure it's specific enough
     if (pathname.includes('/token-supply') || pathname.includes('/circulating-supply')) {
       console.log(`Routing to public handler for: ${pathname}`);
-      return await handleRequest(request, {
-        // jwtVerifySecret is NOT passed, making it undefined in handleRequest options
+      // handleRequest now expects an Express Request, so we cast to `any`
+      // if we were to call it directly from here in a mixed environment.
+      // However, for Vercel, server.ts is the entry point.
+      return await handleRequest(request as any, { // Cast to any to satisfy the new signature
         etherscanApiKey: env.ETHERSCAN_API_KEY,
       });
     }
@@ -44,16 +51,15 @@ export default {
     // All other endpoints are considered authenticated
     console.log(`Routing to authenticated handler for: ${pathname}`);
     if (!env.JWT_VERIFY_SECRET) {
-      // This case should ideally not happen if JWT_VERIFY_SECRET is configured for production
-      // but it's a good safeguard.
       console.error("JWT_VERIFY_SECRET is not defined for an authenticated route!");
       return new Response(JSON.stringify({ error: "Server configuration error: JWT secret missing." }), {
         status: 500,
         headers: { "Content-Type": "application/json" },
       });
     }
-    return await handleRequest(request, {
-      jwtVerifySecret: env.JWT_VERIFY_SECRET, // Passed for authenticated routes
+    // As above, casting to `any` for handleRequest if called from here.
+    // Removed jwtVerifySecret from options as it's no longer part of the handleRequest signature
+    return await handleRequest(request as any, { // Cast to any to satisfy the new signature
       etherscanApiKey: env.ETHERSCAN_API_KEY,
     });
   },

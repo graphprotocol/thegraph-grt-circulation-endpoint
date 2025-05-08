@@ -1,0 +1,16 @@
+{
+  "version": 2,
+  "name": "grt-circulation",
+  "framework": "express",
+  "entry": "server.ts",
+  "routes": [
+    {
+      "src": "/token-supply",
+      "dest": "/token-supply"
+    },
+    {
+      "src": "/circulating-supply",
+      "dest": "/circulating-supply"
+    }
+  ]
+}
