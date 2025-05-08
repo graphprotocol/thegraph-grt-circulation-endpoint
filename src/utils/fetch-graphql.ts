@@ -5,11 +5,17 @@ export async function fetchGraphQL<TVariables, TResponse>(input: {
   query: string;
   variables: TVariables;
 }): Promise<TResponse> {
+  const headers: HeadersInit = {
+    accept: "*/*",
+    "content-type": "application/json",
+  };
+
+  if (input.url.startsWith("https://gateway.thegraph.com/api/subgraphs/id/")) {
+    headers["Authorization"] = "Bearer a3c6ac399250b5612c70354edda5c458";
+  }
+
   const response = await fetch(input.url, {
-    headers: {
-      accept: "*/*",
-      "content-type": "application/json",
-    },
+    headers,
     body: JSON.stringify({
       query: input.query,
       variables: input.variables,
@@ -21,12 +27,12 @@ export async function fetchGraphQL<TVariables, TResponse>(input: {
     throw new Error(`Invalid GraphQL status code: ${response.status}`);
   }
 
-  const body = await response.json<ExecutionResult<TResponse>>();
+  const body = (await response.json()) as ExecutionResult<TResponse>;
 
   if (body.errors && body.errors.length > 0) {
     console.log(`${body.errors}`);
     throw new Error(
-      `GraphQL Errors: ${body.errors.map((e) => e.message).join(",")}`
+      `GraphQL Errors: ${body.errors.map((e: any) => e.message).join(",")}`
     );
   }
 

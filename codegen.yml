@@ -1,8 +1,9 @@
 generates:
   src/types/global-states.graphql.ts:
-    schema:
-      - ? https://api.thegraph.com/subgraphs/name/graphprotocol/grt-circulating-supply
-        : headers:
+    schema: # This is the correct single schema key
+      - https://gateway.thegraph.com/api/subgraphs/id/6FzQRX4QRVUcAKp6K1DjwnvuQwSYfwhdVG2EhVmHrUwY:
+          headers:
+            Authorization: "Bearer a3c6ac399250b5612c70354edda5c458"
     documents: "src/utils/global-states.graphql.ts"
     config:
       enumsAsTypes: true
@@ -13,16 +14,4 @@ generates:
       - "typescript"
       - "typescript-operations"
 
-  src/types/blocks-info.graphql.ts:
-    schema:
-      - https://api.thegraph.com/subgraphs/name/blocklytics/ethereum-blocks:
-          headers:
-    documents: "src/utils/blocks-info.graphql.ts"
-    config:
-      enumsAsTypes: true
-      scalars:
-        URI: string
-        BigInt: string
-    plugins:
-      - "typescript"
-      - "typescript-operations"
+# Configuration for blocks-info.graphql.ts is removed as it no longer uses GraphQL

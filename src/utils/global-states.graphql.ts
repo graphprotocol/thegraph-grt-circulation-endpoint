@@ -24,7 +24,7 @@ export async function getGlobalStateByBlockNumber(blockNumber: number | null) {
     AllGlobalStatesQueryVariables,
     AllGlobalStatesQuery
   >({
-    url: "https://api.thegraph.com/subgraphs/name/graphprotocol/grt-circulating-supply",
+    url: "https://gateway.thegraph.com/api/subgraphs/id/6FzQRX4QRVUcAKp6K1DjwnvuQwSYfwhdVG2EhVmHrUwY",
     query: allGlobalStates,
     variables: {
       blockFilter: {
@@ -50,7 +50,7 @@ export async function getLatestGlobalState() {
     AllGlobalStatesQueryVariables,
     AllGlobalStatesQuery
   >({
-    url: "https://api.thegraph.com/subgraphs/name/graphprotocol/grt-circulating-supply",
+    url: "https://gateway.thegraph.com/api/subgraphs/id/6FzQRX4QRVUcAKp6K1DjwnvuQwSYfwhdVG2EhVmHrUwY",
     query: allGlobalStates,
     variables: {
       orderDirection: "desc",
