@@ -17,3 +17,14 @@ export function mockFetch(
 
   return fetchMock;
 }
+
+export function createMockRequest(url: string): any {
+  const urlObj = new URL(url);
+  return {
+    headers: {
+      host: urlObj.host,
+    },
+    originalUrl: urlObj.pathname + urlObj.search,
+    url: urlObj.pathname + urlObj.search,
+  };
+}
