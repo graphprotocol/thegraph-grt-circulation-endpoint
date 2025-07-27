@@ -8,23 +8,28 @@ const l2GraphNetworkQuery = /* GraphQL */ `
     graphNetworks(first: 1, block: $blockFilter) {
       totalSupply
       totalGRTDepositedConfirmed
+      totalGRTWithdrawn
     }
   }
 `;
 
-function transformL2Response(graphNetwork: { totalSupply: string; totalGRTDepositedConfirmed: string }): L2SupplyData {
+function transformL2Response(graphNetwork: { totalSupply: string; totalGRTDepositedConfirmed: string; totalGRTWithdrawn: string }): L2SupplyData {
   const totalSupply = graphNetwork.totalSupply;
   const totalGRTDepositedConfirmed = graphNetwork.totalGRTDepositedConfirmed;
+  const totalGRTWithdrawn = graphNetwork.totalGRTWithdrawn;
   
   // Calculate net L2 supply (new tokens minted on L2)
-  // netL2Supply = totalSupply - totalGRTDepositedConfirmed
+  // netL2Supply = totalSupply - (deposited - withdrawn)
+  // This accounts for the net bridge flow: deposits reduce L2 net supply, withdrawals increase it
   const netL2Supply = new Decimal(totalSupply)
     .minus(new Decimal(totalGRTDepositedConfirmed))
+    .plus(new Decimal(totalGRTWithdrawn))
     .toString();
 
   return {
     totalSupply,
     totalGRTDepositedConfirmed,
+    totalGRTWithdrawn,
     netL2Supply,
   };
 }
@@ -48,7 +53,7 @@ export async function getL2SupplyByBlockNumber(
     }
 
     const graphNetwork = l2Response.graphNetworks[0];
-    console.log(`L2 data fetched: totalSupply=${graphNetwork.totalSupply}, deposited=${graphNetwork.totalGRTDepositedConfirmed}`);
+    console.log(`L2 data fetched: totalSupply=${graphNetwork.totalSupply}, deposited=${graphNetwork.totalGRTDepositedConfirmed}, withdrawn=${graphNetwork.totalGRTWithdrawn}`);
     
     return transformL2Response(graphNetwork);
   } catch (error) {
@@ -73,7 +78,7 @@ export async function getLatestL2Supply(l2SubgraphUrl: string): Promise<L2Supply
     }
 
     const graphNetwork = l2Response.graphNetworks[0];
-    console.log(`Latest L2 data: totalSupply=${graphNetwork.totalSupply}, deposited=${graphNetwork.totalGRTDepositedConfirmed}`);
+    console.log(`Latest L2 data: totalSupply=${graphNetwork.totalSupply}, deposited=${graphNetwork.totalGRTDepositedConfirmed}, withdrawn=${graphNetwork.totalGRTWithdrawn}`);
     
     return transformL2Response(graphNetwork);
   } catch (error) {

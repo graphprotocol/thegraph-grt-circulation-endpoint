@@ -70,8 +70,12 @@ export function validateL2Data(l2Data: L2SupplyData): ValidationResult {
       errors.push('L2 data is incomplete: missing totalSupply or totalGRTDepositedConfirmed');
     }
 
+    if (!l2Data.totalGRTWithdrawn) {
+      warnings.push('L2 data missing totalGRTWithdrawn - bridge flow validation will be skipped');
+    }
+
     // Validate positive values
-    const fields = ['totalSupply', 'totalGRTDepositedConfirmed', 'netL2Supply'];
+    const fields = ['totalSupply', 'totalGRTDepositedConfirmed', 'totalGRTWithdrawn', 'netL2Supply'];
     
     for (const field of fields) {
       const value = l2Data[field as keyof L2SupplyData];
@@ -93,20 +97,27 @@ export function validateL2Data(l2Data: L2SupplyData): ValidationResult {
         errors.push(`L2 totalGRTDepositedConfirmed (${deposited}) cannot exceed totalSupply (${totalSupply})`);
       }
       
-      // Net supply should equal totalSupply - deposited
-      if (l2Data.netL2Supply) {
-        const expectedNetSupply = totalSupply.minus(deposited);
+      // Net supply should equal totalSupply - (deposited - withdrawn)
+      // This accounts for bridge flows in both directions
+      if (l2Data.netL2Supply && l2Data.totalGRTWithdrawn) {
+        const withdrawn = new Decimal(l2Data.totalGRTWithdrawn);
+        const netDeposited = deposited.minus(withdrawn);
+        const expectedNetSupply = totalSupply.minus(netDeposited);
         const actualNetSupply = new Decimal(l2Data.netL2Supply);
         
         if (!expectedNetSupply.equals(actualNetSupply)) {
-          warnings.push(`L2 netL2Supply (${actualNetSupply}) doesn't match calculated value (${expectedNetSupply})`);
+          warnings.push(`L2 netL2Supply (${actualNetSupply}) doesn't match calculated value (${expectedNetSupply}) using bridge flow accounting`);
         }
       }
       
-      // Warn if net supply is negative (more deposited than total - unusual)
-      const netSupply = totalSupply.minus(deposited);
-      if (netSupply.isNegative()) {
-        warnings.push(`L2 net supply is negative (${netSupply}) - more GRT deposited than total supply`);
+      // Warn if net supply is negative (unusual - would mean more net deposited than total)
+      if (l2Data.totalGRTWithdrawn) {
+        const withdrawn = new Decimal(l2Data.totalGRTWithdrawn);
+        const netDeposited = deposited.minus(withdrawn);
+        const netSupply = totalSupply.minus(netDeposited);
+        if (netSupply.isNegative()) {
+          warnings.push(`L2 net supply is negative (${netSupply}) - more net GRT deposited than total supply`);
+        }
       }
     }
 

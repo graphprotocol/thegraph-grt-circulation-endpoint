@@ -46,6 +46,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Cleaned up package.json scripts to remove L1/L2 version distinction.
 
 ### Fixed
+- **2025-07-27:**
+    - **Critical L2 Withdrawal Accounting Bug**: Fixed major reconciliation error where L2→L1 withdrawals were not properly accounted for in net supply calculations.
+        - **Root Cause**: L2 net supply calculation only considered deposits (`totalGRTDepositedConfirmed`) but ignored withdrawals (`totalGRTWithdrawn`), causing ~370M GRT to be double-counted.
+        - **Impact**: Total supply was underreported by ~3.4% (~371M GRT), showing ~10.9B instead of expected ~11.28B.
+        - **Solution**: Added `totalGRTWithdrawn` to L2 GraphQL queries and updated net supply formula to: `L2 Net = L2 Total - (Deposits - Withdrawals)`.
+        - **Bridge Timing**: Uses L2-initiated withdrawals (immediately burned on L2) rather than L1-confirmed withdrawals for proper token accounting.
+        - **Validation**: Mathematical reconciliation now correctly validates that `circulatingSupply ≤ totalSupply`.
+    - **Enhanced Documentation**: Completely rewrote reconciliation logic documentation with accurate bridge flow accounting and double-counting prevention explanations.
 - **2025-07-26:**
     - TypeScript compilation errors with Promise.allSettled result handling.
     - Import path issues after codebase restructuring.

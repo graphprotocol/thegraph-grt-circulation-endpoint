@@ -5,8 +5,8 @@ A deterministic L1+L2 GRT supply reconciliation service that provides accurate t
 ## Overview
 
 This service fetches GRT token supply data from both:
-- **Layer 1**: The Graph's mainnet subgraph for core supply metrics
-- **Layer 2**: The Graph's L2 subgraph for deposited and minted tokens
+- **Layer 1**: The Graph GRT Supply Subgraph (includes vesting schedules and inflation tracking)
+- **Layer 2**: The Graph Network Subgraph on Arbitrum One (includes bridge transactions and L2 minting)
 
 The reconciliation logic ensures no double-counting while providing comprehensive supply data across both layers.
 
@@ -23,7 +23,7 @@ The reconciliation logic ensures no double-counting while providing comprehensiv
 
 ### Supply Data (L1+L2 Reconciled)
 - `GET /token-supply` - Returns total supply (L1 + L2 net supply)
-- `GET /circulating-supply` - Returns circulating supply (L1 + L2 total supply)
+- `GET /circulating-supply` - Returns circulating supply (L1 + L2 net supply)
 - `GET /global-state` - Returns full breakdown with L1/L2 data
 - `GET /global-state?timestamp=1640995200` - Historical reconciled data
 
@@ -81,19 +81,26 @@ pnpm start
 ## Reconciliation Logic
 
 ### Data Sources
-- **L1 GlobalState**: `totalSupply`, `circulatingSupply`, `lockedSupply`, etc.
-- **L2 GraphNetwork**: `totalSupply`, `totalGRTDepositedConfirmed`
+- **L1 GRT Supply Subgraph**: `totalSupply`, `circulatingSupply`, `lockedSupply` (includes vesting and inflation)
+- **L2 Graph Network Subgraph**: `totalSupply`, `totalGRTDepositedConfirmed`, `totalGRTWithdrawn`
 
-### Calculations
+### Bridge Flow Accounting
+The key insight is properly handling L1↔L2 bridge flows to avoid double-counting:
+
 ```typescript
-// L2 net supply (new tokens minted on L2)
-netL2Supply = L2.totalSupply - L2.totalGRTDepositedConfirmed
+// L2 net supply (new tokens minted on L2, accounting for bridge flows)
+netL2Supply = L2.totalSupply - (L2.totalGRTDepositedConfirmed - L2.totalGRTWithdrawn)
 
 // Combined totals (avoiding double counting)
 totalSupply = L1.totalSupply + netL2Supply
-circulatingSupply = L1.circulatingSupply + L2.totalSupply
+circulatingSupply = L1.circulatingSupply + netL2Supply
 lockedSupply = L1.lockedSupply  // L2 deposits are transfers, not locks
 ```
+
+### Why This Works
+- **L1→L2 Deposits**: Counted in L1 total, subtracted from L2 net to avoid double counting
+- **L2→L1 Withdrawals**: Burned on L2, added back to L2 net calculation for accuracy
+- **L2 Net Supply**: Represents only new tokens minted on L2, not bridged tokens
 
 ### Example Response
 ```json

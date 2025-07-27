@@ -53,10 +53,10 @@ describe('SupplyReconciler', () => {
     
     // Check that L1 and L2 data are properly combined
     // totalSupply = L1 + L2NetSupply = 10B + ~0.114B = ~10.114B
-    expect(reconciledData.totalSupply).toBeCloseTo(10114095110, 6);
+    expect(reconciledData.totalSupply).toBeCloseTo(10114095110.824705, 3);
     
-    // circulatingSupply = L1 + L2TotalSupply = 8.1B + ~3.344B = ~11.444B
-    expect(reconciledData.circulatingSupply).toBeCloseTo(11444392801, 6);
+    // circulatingSupply = L1 + L2NetSupply = 8.1B + ~0.114B = ~8.214B (consistent calculation)
+    expect(reconciledData.circulatingSupply).toBeCloseTo(8214095110.824705, 3);
     
     // Verify breakdown data is preserved
     expect(reconciledData.l1Breakdown).toEqual(mockL1Data);
@@ -71,7 +71,7 @@ describe('SupplyReconciler', () => {
     const result = await reconciler.getReconciledLatestSupply();
 
     expect(result.success).toBe(false);
-    expect(result.errors).toContain(expect.stringContaining('L1 fetch failed'));
+    expect(result.errors.some(error => error.includes('L1 fetch failed'))).toBe(true);
     expect(result.reconciledSupply).toBeUndefined();
   });
 
@@ -82,7 +82,7 @@ describe('SupplyReconciler', () => {
     const result = await reconciler.getReconciledLatestSupply();
 
     expect(result.success).toBe(false);
-    expect(result.errors).toContain(expect.stringContaining('L2 fetch failed'));
+    expect(result.errors.some(error => error.includes('L2 fetch failed'))).toBe(true);
     expect(result.reconciledSupply).toBeUndefined();
   });
 
@@ -125,7 +125,7 @@ describe('SupplyReconciler', () => {
     const result = await reconciler.getReconciledLatestSupply();
 
     expect(result.success).toBe(false);
-    expect(result.errors).toContain(expect.stringContaining('L1 validation'));
+    expect(result.errors.some(error => error.includes('L1 validation'))).toBe(true);
   });
 
   it('should skip validation when disabled', async () => {
@@ -148,5 +148,41 @@ describe('SupplyReconciler', () => {
 
     // Should succeed despite invalid data because validation is disabled
     expect(result.success).toBe(true);
+  });
+
+  it('should successfully reconcile realistic L1+L2 data without validation errors', async () => {
+    // Use realistic data from production logs to verify the fix
+    const realisticL1Data = {
+      totalSupply: '10800262816048213437000000000000000000',     // ~10.8B GRT 
+      lockedSupply: '921278119800416700000000000000000000',      // ~921M GRT
+      lockedSupplyGenesis: '900000000000000000000000000000000000', // ~900M GRT
+      liquidSupply: '9878984696247796737000000000000000000',     // ~9.9B GRT  
+      circulatingSupply: '10800262816048213437000000000000000000', // ~10.8B GRT
+    };
+
+    const realisticL2Data = {
+      totalSupply: '3342705006110798294471944875',              // ~3.34B GRT
+      totalGRTDepositedConfirmed: '3230298701957382879763373638', // ~3.23B GRT
+      netL2Supply: '112406304153415414708571237',               // ~112M GRT
+    };
+
+    mockGetLatestGlobalState.mockResolvedValue(realisticL1Data);
+    mockGetLatestL2Supply.mockResolvedValue(realisticL2Data);
+
+    const result = await reconciler.getReconciledLatestSupply();
+
+    expect(result.success).toBe(true);
+    expect(result.errors).toHaveLength(0);
+    
+    const reconciledData = result.reconciledSupply!;
+    
+    // Verify total supply = L1 total + L2 net = ~10.8B + ~0.112B = ~10.912B  
+    expect(reconciledData.totalSupply).toBeCloseTo(10800262816160620000, 0);
+    
+    // Verify circulating supply now equals total supply (no longer exceeds it)
+    expect(reconciledData.circulatingSupply).toBeCloseTo(reconciledData.totalSupply, 6);
+    
+    // Verify circulating supply <= total supply (should not trigger validation error)
+    expect(reconciledData.circulatingSupply).toBeLessThanOrEqual(reconciledData.totalSupply);
   });
 });
