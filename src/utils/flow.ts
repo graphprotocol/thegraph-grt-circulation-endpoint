@@ -1,18 +1,12 @@
-// import jwt from "@tsndr/cloudflare-worker-jwt"; // Removed: No longer needed
-import { AllGlobalStatesQuery } from "../types/global-states.graphql";
-import { getBlockByTimestamp, getLatestBlock } from "./blocks-info.graphql";
-import {
-  getGlobalStateByBlockNumber,
-  getLatestGlobalState,
-} from "./global-states.graphql";
-// import { validateAndExtractTokenFromRequest } from "./validate-and-extract-token-from-request"; // Removed: No longer needed
-import { Decimal } from "decimal.js";
-
-const DIVISION_NUMBER = 1000000000000000000;
+import { SupplyReconciler } from "./reconciliation/supply-reconciler";
+import { ReconciliationConfig } from "./reconciliation/types";
+import { RetryHandler } from "./reconciliation/retry-handler";
 
 export function createErrorResponse(message: string, status: number): Response {
-  // Ensure this returns a standard Web API Response
-  const body = JSON.stringify({ error: message });
+  const body = JSON.stringify({ 
+    error: message,
+    timestamp: new Date().toISOString(),
+  });
   return new Response(body, {
     status,
     headers: {
@@ -21,36 +15,44 @@ export function createErrorResponse(message: string, status: number): Response {
   });
 }
 
-type PatchResponse = {
-  [Property in keyof Omit<
-    AllGlobalStatesQuery["globalStates"][number],
-    "__typename"
-  >]: number;
-};
-
-function getDividedNumberFromResult(input: string) {
-  return new Decimal(input).dividedBy(DIVISION_NUMBER).toNumber();
+function createTotalSupplyResponse(totalSupply: number): Response {
+  return new Response(String(totalSupply), {
+    status: 200,
+    headers: {
+      "Content-Type": "text/plain",
+    }
+  });
 }
 
-export function patchResponse(
-  source: AllGlobalStatesQuery["globalStates"][number]
-): PatchResponse {
-  return {
-    totalSupply: getDividedNumberFromResult(source.totalSupply),
-    lockedSupply: getDividedNumberFromResult(source.lockedSupply),
-    lockedSupplyGenesis: getDividedNumberFromResult(source.lockedSupplyGenesis),
-    liquidSupply: getDividedNumberFromResult(source.liquidSupply),
-    circulatingSupply: getDividedNumberFromResult(source.circulatingSupply),
+function createCirculatingSupplyResponse(circulatingSupply: number): Response {
+  return new Response(String(circulatingSupply), {
+    status: 200,
+    headers: {
+      "Content-Type": "text/plain",
+    }
+  });
+}
+
+function createGlobalStateResponse(reconciledData: any): Response {
+  // Create response with reconciled data and breakdown
+  const responseBody = {
+    totalSupply: reconciledData.totalSupply,
+    lockedSupply: reconciledData.lockedSupply,
+    lockedSupplyGenesis: reconciledData.lockedSupplyGenesis,
+    liquidSupply: reconciledData.liquidSupply,
+    circulatingSupply: reconciledData.circulatingSupply,
+    reconciliationTimestamp: reconciledData.reconciliationTimestamp,
+    l1Breakdown: {
+      totalSupply: Number((Number(reconciledData.l1Breakdown.totalSupply) / 1e18).toFixed(6)),
+      lockedSupply: Number((Number(reconciledData.l1Breakdown.lockedSupply) / 1e18).toFixed(6)),
+      lockedSupplyGenesis: Number((Number(reconciledData.l1Breakdown.lockedSupplyGenesis) / 1e18).toFixed(6)),
+      liquidSupply: Number((Number(reconciledData.l1Breakdown.liquidSupply) / 1e18).toFixed(6)),
+      circulatingSupply: Number((Number(reconciledData.l1Breakdown.circulatingSupply) / 1e18).toFixed(6)),
+    },
+    l2Breakdown: reconciledData.l2Breakdown,
   };
-}
 
-function createValidResponse(
-  globalState: AllGlobalStatesQuery["globalStates"][number]
-): Response {
-  const patchedResponse = patchResponse(globalState);
-  // Ensure this returns a standard Web API Response
-  const body = JSON.stringify(patchedResponse);
-  return new Response(body, {
+  return new Response(JSON.stringify(responseBody), {
     status: 200,
     headers: {
       "Content-Type": "application/json",
@@ -58,109 +60,134 @@ function createValidResponse(
   });
 }
 
-function createCirculatingSupplyResponse(
-  globalState: AllGlobalStatesQuery["globalStates"][number]
-): Response {
-  const patchedResponse = patchResponse(globalState);
-  // Ensure this returns a standard Web API Response
-  return new Response(String(patchedResponse.circulatingSupply), {
-    status: 200,
-    headers: {
-        "Content-Type": "text/plain", // Typically circulating supply is plain text
-    }
-  });
-}
-
-function createTotalsupplyResponse(
-  globalState: AllGlobalStatesQuery["globalStates"][number]
-): Response {
-  const patchedResponse = patchResponse(globalState);
-   // Ensure this returns a standard Web API Response
-  return new Response(String(patchedResponse.totalSupply), {
-    status: 200,
-    headers: {
-        "Content-Type": "text/plain", // Typically total supply is plain text
-    }
-  });
-}
-
 export async function handleRequest(
-  request: import('express').Request, // This is an Express Request object
+  request: import('express').Request,
   options: {
-    // jwtVerifySecret?: string; // Removed: No longer needed for public API
     etherscanApiKey: string;
+    l2SubgraphUrl: string;
+    retryMaxAttempts?: number;
+    retryBaseDelayMs?: number;
+    enableValidation?: boolean;
   }
-): Promise<Response> { // This should return a standard Web API Response
+): Promise<Response> {
   try {
-    // Construct the full URL if not already present on the Express request
-    // Vercel and other platforms might provide this differently.
-    // For Express, `request.protocol`, `request.get('host')`, `request.originalUrl` are common.
-    // We need a full URL for `new URL()`.
-    // Assuming the Express server is running at some base URL.
-    // For local dev, it might be http://localhost:3000
-    // For Vercel, it will be the deployment URL.
-    // Let's try to construct it, or ensure `request.url` is what `new URL` expects.
-    // Express `req.url` is usually just the path and query.
-    // A common workaround for `new URL` is to provide a dummy base if only path is needed.
+    // Construct URL for routing
     const fullUrl = `http://${request.headers.host || 'localhost'}${request.originalUrl || request.url}`;
     const url = new URL(fullUrl);
     const params = Object.fromEntries(url.searchParams);
     const pathname = url.pathname;
 
-    console.info(`Public request for ${pathname}.`);
+    console.info(`Deterministic L1+L2 request for ${pathname}`);
 
-    // Path-based routing for data fetching
+    // Create reconciliation config
+    const reconciliationConfig: ReconciliationConfig = {
+      l2SubgraphUrl: options.l2SubgraphUrl,
+      enableValidation: options.enableValidation ?? true,
+      toleranceThreshold: 0.001, // 0.1% tolerance for validation
+    };
+
+    // Create retry handler with custom config if provided
+    const retryHandler = new RetryHandler({
+      maxAttempts: options.retryMaxAttempts || 3,
+      baseDelayMs: options.retryBaseDelayMs || 1000,
+    });
+
+    const reconciler = new SupplyReconciler(reconciliationConfig);
+
+    // Handle timestamp-based queries
+    const timestamp = params.timestamp ? parseInt(params.timestamp) : null;
+
+    let reconciliationResult;
+    if (timestamp) {
+      console.log(`Processing request with timestamp: ${timestamp}`);
+      reconciliationResult = await reconciler.getReconciledSupplyByTimestamp(timestamp, options.etherscanApiKey);
+    } else {
+      console.log("Processing request for latest data");
+      reconciliationResult = await reconciler.getReconciledLatestSupply();
+    }
+
+    // Check if reconciliation was successful
+    if (!reconciliationResult.success) {
+      console.error("Reconciliation failed:", reconciliationResult.errors);
+      
+      // Log performance metrics
+      console.log(`Performance metrics - L1: ${reconciliationResult.l1FetchDurationMs}ms, L2: ${reconciliationResult.l2FetchDurationMs}ms, Total: ${reconciliationResult.totalDurationMs}ms`);
+      
+      return createErrorResponse(
+        `Failed to fetch deterministic supply data: ${reconciliationResult.errors.join("; ")}`,
+        503 // Service Unavailable
+      );
+    }
+
+    const reconciledData = reconciliationResult.reconciledSupply!;
+
+    // Log performance metrics for successful requests
+    console.log(`Reconciliation successful - L1: ${reconciliationResult.l1FetchDurationMs}ms, L2: ${reconciliationResult.l2FetchDurationMs}ms, Total: ${reconciliationResult.totalDurationMs}ms`);
+
+    // Route to appropriate response format
     if (pathname.includes("/token-supply")) {
-      const lastGlobalState = await getLatestGlobalState();
-      console.log("Processing /token-supply request.");
-      return createTotalsupplyResponse(lastGlobalState);
+      console.log("Returning total supply response");
+      return createTotalSupplyResponse(reconciledData.totalSupply);
     }
 
     if (pathname.includes("/circulating-supply")) {
-      const lastGlobalState = await getLatestGlobalState();
-      console.log("Processing /circulating-supply request.");
-      return createCirculatingSupplyResponse(lastGlobalState);
+      console.log("Returning circulating supply response");
+      return createCirculatingSupplyResponse(reconciledData.circulatingSupply);
     }
-    
-    // Since all endpoints are public now, any other path is a 404
-    // unless we add more specific routes.
-    // The original logic for timestamp-based queries was tied to authentication.
-    // If we want to keep timestamp queries public, we need to define their paths.
-    // For now, let's assume only /token-supply and /circulating-supply are valid.
 
-    // If we want to support the timestamp based query publicly on a specific path, e.g., /global-state
     if (pathname.includes("/global-state")) {
-        const timestamp = params.timestamp ? parseInt(params.timestamp) : null;
-        if (timestamp) {
-          console.log(`Processing public request for timestamp: ${timestamp}`);
-          const blockDetails = await getBlockByTimestamp(timestamp, options.etherscanApiKey).then(
-            async (blockInfo) => {
-              if (!blockInfo) return await getLatestBlock(options.etherscanApiKey);
-              return blockInfo;
-            }
-          );
-          const globalStateDetails = await getGlobalStateByBlockNumber(blockDetails).then(
-            async (globalStateInfo) => {
-              if (!globalStateInfo) return await getLatestGlobalState();
-              return globalStateInfo;
-            }
-          );
-          return createValidResponse(globalStateDetails);
-        } else {
-          // Default for /global-state if no timestamp
-          console.log("Processing public request for latest global state.");
-          const lastGlobalState = await getLatestGlobalState();
-          return createValidResponse(lastGlobalState);
-        }
+      console.log("Returning full global state response");
+      return createGlobalStateResponse(reconciledData);
+    }
+
+    // Health check endpoints
+    if (pathname.includes("/health")) {
+      const circuitBreakerStatus = retryHandler.getCircuitBreakerStatus();
+      
+      if (pathname.includes("/health/l1")) {
+        return new Response(JSON.stringify({
+          status: "healthy",
+          service: "L1",
+          circuitBreaker: circuitBreakerStatus["L1_LATEST_GLOBAL_STATE"] || { count: 0, isOpen: false },
+        }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+
+      if (pathname.includes("/health/l2")) {
+        return new Response(JSON.stringify({
+          status: "healthy", 
+          service: "L2",
+          circuitBreaker: circuitBreakerStatus["L2_LATEST_SUPPLY"] || { count: 0, isOpen: false },
+        }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+
+      if (pathname.includes("/health/combined")) {
+        const allHealthy = Object.values(circuitBreakerStatus).every(status => !status.isOpen);
+        
+        return new Response(JSON.stringify({
+          status: allHealthy ? "healthy" : "degraded",
+          service: "L1+L2 Combined",
+          circuitBreakers: circuitBreakerStatus,
+          timestamp: new Date().toISOString(),
+        }), {
+          status: allHealthy ? 200 : 503,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
     }
 
     return createErrorResponse(`Endpoint ${pathname} not found.`, 404);
 
   } catch (error) {
-    console.error("Error in handleRequest:", error);
+    console.error("Critical error in handleRequest:", error);
     const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
     return createErrorResponse(
-      `Server error: ${errorMessage}`,
+      `Critical server error: ${errorMessage}`,
       500
     );
   }

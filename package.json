@@ -25,10 +25,14 @@
   },
   "private": true,
   "scripts": {
-    "start": "node server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
     "dev": "ts-node server.ts",
     "deploy": "vercel",
     "test": "jest --no-watchman --coverage",
+    "test:reconciliation": "jest --no-watchman reconciliation",
+    "test:integration": "jest --no-watchman integration",
+    "test:l2": "jest --no-watchman l2",
     "generate": "graphql-codegen --config codegen.yml"
   },
   "dependencies": {

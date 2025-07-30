@@ -1,16 +1,12 @@
 {
   "version": 2,
-  "name": "grt-circulation",
-  "framework": "express",
-  "entry": "server.ts",
-  "routes": [
+  "builds": [
     {
-      "src": "/token-supply",
-      "dest": "/token-supply"
-    },
-    {
-      "src": "/circulating-supply",
-      "dest": "/circulating-supply"
+      "src": "server.ts",
+      "use": "@vercel/node"
     }
+  ],
+  "routes": [
+    { "src": "/(.*)", "dest": "server.ts" }
   ]
 }
