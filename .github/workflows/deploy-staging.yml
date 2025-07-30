@@ -21,9 +21,6 @@ jobs:
       - name: Install dependencies
         run: yarn install --frozen-lockfile
 
-      - name: Build project
-        run: yarn build
-
       - name: Deploy to Vercel
         uses: amondnet/vercel-action@v25
         with:
