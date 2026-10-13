@@ -22,6 +22,7 @@ jobs:
         with:
           nodeVersion: 18
           packageManager: pnpm
+          packageManagerVersion: 9.15.9
 
       - name: generate types
         run: pnpm generate
@@ -44,6 +45,7 @@ jobs:
         with:
           nodeVersion: 18
           packageManager: pnpm
+          packageManagerVersion: 9.15.9
 
       - name: generate types
         run: pnpm generate
