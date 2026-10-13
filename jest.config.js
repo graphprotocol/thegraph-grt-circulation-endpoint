@@ -4,6 +4,5 @@ module.exports = {
   transform: {
     "^.+\\.(t|j)sx?$": "@swc/jest",
   },
-  setupFiles: ['./jest.setup.js'],
-  setupFilesAfterEnv: ['dotenv/config'],
+  setupFilesAfterEnv: ['./jest.setup.js'],
 };

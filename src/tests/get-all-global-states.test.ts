@@ -1,6 +1,6 @@
 import { describe, expect, test } from "@jest/globals";
 import { mockFetch } from "./utils";
-import { getGlobalStateByBlockNumber } from "../utils/global-states.graphql";
+import { getGlobalStateByBlockNumber } from "../utils/l1/global-states.graphql";
 
 describe("getAllGlobalStates", () => {
   test("When we got valid timestamp -> we should return Number", async () => {

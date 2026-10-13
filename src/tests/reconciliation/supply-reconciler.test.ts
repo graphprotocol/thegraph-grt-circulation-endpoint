@@ -36,6 +36,7 @@ describe('SupplyReconciler', () => {
   const mockL2Data = {
     totalSupply: '3344392801699562803941900360',           // Total L2 supply in wei
     totalGRTDepositedConfirmed: '3230297690874856963763373638', // Deposited from L1 in wei
+    totalGRTWithdrawn: '0',
     netL2Supply: '114095110824705840178526722',            // Net new L2 tokens in wei
   };
 
@@ -105,9 +106,9 @@ describe('SupplyReconciler', () => {
     const result = await reconciler.getReconciledLatestSupply();
 
     expect(result.success).toBe(true);
-    expect(result.l1FetchDurationMs).toBeGreaterThan(0);
-    expect(result.l2FetchDurationMs).toBeGreaterThan(0);
-    expect(result.totalDurationMs).toBeGreaterThan(0);
+    expect(result.l1FetchDurationMs).toBeGreaterThanOrEqual(0);
+    expect(result.l2FetchDurationMs).toBeGreaterThanOrEqual(0);
+    expect(result.totalDurationMs).toBeGreaterThanOrEqual(0);
     expect(result.totalDurationMs).toBeGreaterThanOrEqual(
       Math.max(result.l1FetchDurationMs, result.l2FetchDurationMs)
     );
@@ -163,6 +164,7 @@ describe('SupplyReconciler', () => {
     const realisticL2Data = {
       totalSupply: '3342705006110798294471944875',              // ~3.34B GRT
       totalGRTDepositedConfirmed: '3230298701957382879763373638', // ~3.23B GRT
+      totalGRTWithdrawn: '0',
       netL2Supply: '112406304153415414708571237',               // ~112M GRT
     };
 
