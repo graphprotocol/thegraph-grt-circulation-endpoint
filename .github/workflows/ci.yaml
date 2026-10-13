@@ -29,29 +29,3 @@ jobs:
 
       - name: test
         run: pnpm test
-
-  deploy:
-    runs-on: ubuntu-latest
-    needs: test
-    name: deploy
-    steps:
-      - name: checkout
-        uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
-
-      - uses: the-guild-org/shared-config/setup@main
-        name: setup env
-        with:
-          nodeVersion: 22
-          packageManager: pnpm
-          packageManagerVersion: 9.15.9
-
-      - name: generate types
-        run: pnpm generate
-
-      - name: Publish
-        uses: cloudflare/wrangler-action@2.0.0
-        with:
-          apiToken: ${{ secrets.CF_API_TOKEN }}
-          accountId: ${{ secrets.CF_ACCOUNT_ID }}
