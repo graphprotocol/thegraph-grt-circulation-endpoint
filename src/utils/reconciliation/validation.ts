@@ -92,9 +92,13 @@ export function validateL2Data(l2Data: L2SupplyData): ValidationResult {
       const totalSupply = new Decimal(l2Data.totalSupply);
       const deposited = new Decimal(l2Data.totalGRTDepositedConfirmed);
       
-      // Total supply should be >= deposited (can't have more deposited than total)
-      if (deposited.gt(totalSupply)) {
-        errors.push(`L2 totalGRTDepositedConfirmed (${deposited}) cannot exceed totalSupply (${totalSupply})`);
+      // Withdrawals reduce supply without reducing cumulative deposits.
+      // Compare net deposits with supply, matching the netL2Supply calculation.
+      if (l2Data.totalGRTWithdrawn) {
+        const netDeposited = deposited.minus(new Decimal(l2Data.totalGRTWithdrawn));
+        if (netDeposited.gt(totalSupply)) {
+          errors.push(`L2 net deposits (${netDeposited}) cannot exceed totalSupply (${totalSupply})`);
+        }
       }
       
       // Net supply should equal totalSupply - (deposited - withdrawn)
