@@ -1,4 +1,4 @@
-import { handleRequest } from '../../utils/flow-new';
+import { handleRequest } from '../../utils/flow';
 import { createMockRequest } from '../utils';
 
 // Mock the reconciliation system

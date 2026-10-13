@@ -1,21 +1,32 @@
+import { afterEach, beforeEach, expect, jest } from "@jest/globals";
+
+let expectedRequests: Array<{ method: string; url: string }>;
+
+beforeEach(() => {
+  expectedRequests = [];
+});
+
+// Assert outside fetch so application error handling cannot swallow failures.
+afterEach(() => {
+  expectedRequests.forEach(({ method, url }, index) => {
+    const call = jest.mocked(fetch).mock.calls[index];
+    expect(call).toBeDefined();
+    expect(String(call[0])).toBe(url);
+    expect(call[1]?.method || 'GET').toBe(method);
+  });
+});
+
 export function mockFetch(
   method: "GET" | "POST",
   url: string,
   body: Record<string, any>,
   status = 200
 ) {
-  const fetchMock = getMiniflareFetchMock();
-  fetchMock.disableNetConnect();
-  const urlObj = new URL(url);
-  const origin = fetchMock.get(urlObj.origin);
-  origin
-    .intercept({
-      method,
-      path: urlObj.pathname,
-    })
-    .reply(status, JSON.stringify(body));
-
-  return fetchMock;
+  expectedRequests.push({ method, url });
+  jest.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify(body), {
+      status,
+      headers: { 'content-type': 'application/json' },
+  }));
 }
 
 export function createMockRequest(url: string): any {

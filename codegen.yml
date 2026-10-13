@@ -4,7 +4,7 @@ generates:
       - https://gateway.thegraph.com/api/subgraphs/id/6FzQRX4QRVUcAKp6K1DjwnvuQwSYfwhdVG2EhVmHrUwY:
           headers:
             Authorization: "Bearer a3c6ac399250b5612c70354edda5c458"
-    documents: "src/utils/global-states.graphql.ts"
+    documents: "src/utils/l1/global-states.graphql.ts"
     config:
       enumsAsTypes: true
       scalars:

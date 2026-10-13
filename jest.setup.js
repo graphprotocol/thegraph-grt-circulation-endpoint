@@ -1,36 +1,14 @@
-// Force Node.js-compatible fetch implementation
-global.fetch = require('node-fetch');
+// Tests must supply their own HTTP responses and never call live APIs.
+let unexpectedRequests;
 
-// Add MessagePort polyfill for Node.js environment
-global.MessagePort = class MessagePort {
-  constructor() {}
-  postMessage() {}
-  addEventListener() {}
-  removeEventListener() {}
-  start() {}
-  close() {}
-};
+beforeEach(() => {
+  unexpectedRequests = [];
+  globalThis.fetch = jest.fn((input) => {
+    unexpectedRequests.push(String(input));
+    return Promise.reject(new Error('Unexpected HTTP request: add a fetch mock'));
+  });
+});
 
-// Add MessageChannel polyfill
-global.MessageChannel = class MessageChannel {
-  constructor() {
-    this.port1 = new MessagePort();
-    this.port2 = new MessagePort();
-  }
-};
-
-// Add performance polyfill
-global.performance = {
-  now: () => Date.now(),
-  mark: () => {},
-  measure: () => {},
-  getEntriesByName: () => [],
-  getEntriesByType: () => [],
-  getEntries: () => [],
-  clearMarks: () => {},
-  clearMeasures: () => {},
-  clearResourceTimings: () => {},
-  setResourceTimingBufferSize: () => {},
-  onresourcetimingbufferfull: null,
-  timeOrigin: Date.now()
-};
+afterEach(() => {
+  expect(unexpectedRequests).toEqual([]);
+});

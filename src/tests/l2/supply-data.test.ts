@@ -17,6 +17,7 @@ describe('L2 Supply Data GraphQL', () => {
       {
         totalSupply: '3344392801699562803941900360',
         totalGRTDepositedConfirmed: '3230297690874856963763373638',
+        totalGRTWithdrawn: '0',
       }
     ]
   };
@@ -36,7 +37,8 @@ describe('L2 Supply Data GraphQL', () => {
       expect(result).toEqual({
         totalSupply: '3344392801699562803941900360',
         totalGRTDepositedConfirmed: '3230297690874856963763373638',
-        netL2Supply: '114095110824705840178526722', // totalSupply - totalGRTDepositedConfirmed
+        totalGRTWithdrawn: '0',
+        netL2Supply: '1.1409511082470584018e+26', // totalSupply - totalGRTDepositedConfirmed
       });
     });
 
@@ -72,7 +74,8 @@ describe('L2 Supply Data GraphQL', () => {
       expect(result).toEqual({
         totalSupply: '3344392801699562803941900360',
         totalGRTDepositedConfirmed: '3230297690874856963763373638',
-        netL2Supply: '114095110824705840178526722',
+        totalGRTWithdrawn: '0',
+        netL2Supply: '1.1409511082470584018e+26',
       });
     });
 
@@ -106,6 +109,7 @@ describe('L2 Supply Data GraphQL', () => {
           {
             totalSupply: '1000000000000000000000000000', // 1B GRT
             totalGRTDepositedConfirmed: '800000000000000000000000000', // 800M GRT
+            totalGRTWithdrawn: '0',
           }
         ]
       };
@@ -114,7 +118,7 @@ describe('L2 Supply Data GraphQL', () => {
 
       const result = await getLatestL2Supply(mockL2SubgraphUrl);
 
-      expect(result.netL2Supply).toBe('200000000000000000000000000'); // 200M GRT
+      expect(result.netL2Supply).toBe('2e+26'); // 200M GRT
     });
 
     it('should handle zero net supply', async () => {
@@ -123,6 +127,7 @@ describe('L2 Supply Data GraphQL', () => {
           {
             totalSupply: '1000000000000000000000000000', // 1B GRT
             totalGRTDepositedConfirmed: '1000000000000000000000000000', // 1B GRT
+            totalGRTWithdrawn: '0',
           }
         ]
       };
@@ -140,6 +145,7 @@ describe('L2 Supply Data GraphQL', () => {
           {
             totalSupply: '800000000000000000000000000', // 800M GRT
             totalGRTDepositedConfirmed: '1000000000000000000000000000', // 1B GRT
+            totalGRTWithdrawn: '0',
           }
         ]
       };
@@ -148,7 +154,7 @@ describe('L2 Supply Data GraphQL', () => {
 
       const result = await getLatestL2Supply(mockL2SubgraphUrl);
 
-      expect(result.netL2Supply).toBe('-200000000000000000000000000'); // -200M GRT
+      expect(result.netL2Supply).toBe('-2e+26'); // -200M GRT
     });
   });
 });
